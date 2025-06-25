@@ -65,7 +65,7 @@
           </NuxtLink>
           
           <button
-            @click="logoutAndRedirect"
+            @click="logout"
             class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer"
           >
             Sign out
@@ -78,22 +78,22 @@
 
 <script setup>
 definePageMeta({
-  middleware: ['auth'],
+  middleware: ['auth']
 })
 
-const router = useRouter()
-const { user, logout } = useAuth()
+const { user, logout, checkAuth } = useAuth()
+const route = useRoute()
 
-const logoutAndRedirect = () => {
-  logout()
-  router.push('/login')
-}
+// Check auth status when component mounts
+onMounted(() => {
+  checkAuth()
+})
 
 // Watch for profile update success
-watch(() => router.currentRoute.value.query, (newQuery) => {
+watch(() => route.query, (newQuery) => {
   if (newQuery.updated) {
-    // Force refresh user data
-    user.value = { ...user.value }
+    // Refresh user data
+    checkAuth()
   }
 })
 

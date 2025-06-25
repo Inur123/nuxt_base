@@ -1,7 +1,22 @@
 import { jwtDecode } from 'jwt-decode'
 
 export const useAuth = () => {
-  const user = useState('user', () => null)
+  // Initialize user state with token from localStorage if exists
+  const user = useState('user', () => {
+    if (process.client) {
+      const token = localStorage.getItem('token')
+      if (token) {
+        try {
+          return jwtDecode(token)
+        } catch (e) {
+          console.error('Invalid token:', e)
+          localStorage.removeItem('token')
+        }
+      }
+    }
+    return null
+  })
+
   const error = ref(null)
   const config = useRuntimeConfig()
 
@@ -28,17 +43,7 @@ export const useAuth = () => {
       return true
     } catch (e) {
       console.error('Login error:', e)
-
-      if (e.response?.status === 401) {
-        error.value = 'Invalid email or password'
-      } else if (e.response?.status === 400) {
-        error.value = 'Validation error: ' + (e.response._data?.message || 'Invalid input')
-      } else if (e.message.includes('Network Error')) {
-        error.value = 'Network error - please check your connection'
-      } else {
-        error.value = 'Login failed. Please try again later.'
-      }
-
+      handleAuthError(e)
       return false
     }
   }
@@ -60,24 +65,7 @@ export const useAuth = () => {
       return true
     } catch (e) {
       console.error('Register error:', e)
-
-      if (e.response?.status === 409) {
-        error.value = 'Email already exists'
-      } else if (e.response?.status === 400) {
-        error.value = 'Validation error: ' + (e.response._data?.message || 'Invalid input')
-      } else if (e.response?.status === 422) {
-        const messages = e.response._data?.errors
-        if (messages && typeof messages === 'object') {
-          error.value = Object.values(messages).flat().join(', ')
-        } else {
-          error.value = 'Validation error: Invalid input'
-        }
-      } else if (e.message.includes('Network Error')) {
-        error.value = 'Network error - please check your connection'
-      } else {
-        error.value = 'Registration failed. Please try again later.'
-      }
-
+      handleAuthError(e)
       return false
     }
   }
@@ -110,7 +98,7 @@ export const useAuth = () => {
       return true
     } catch (e) {
       console.error('Update error:', e)
-
+      
       if (e.response?.status === 401) {
         error.value = 'Unauthorized: please login again'
         logout()
@@ -127,20 +115,49 @@ export const useAuth = () => {
   }
 
   const checkAuth = () => {
-    const token = localStorage.getItem('token')
-    if (!token) return
+    if (process.client) {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        user.value = null
+        return false
+      }
 
-    try {
-      const decoded = jwtDecode(token)
-      user.value = decoded
-    } catch (e) {
-      logout()
+      try {
+        const decoded = jwtDecode(token)
+        user.value = decoded
+        return true
+      } catch (e) {
+        console.error('Token invalid:', e)
+        logout()
+        return false
+      }
     }
+    return false
   }
 
   const logout = () => {
-    user.value = null
-    localStorage.removeItem('token')
+    if (process.client) {
+      user.value = null
+      localStorage.removeItem('token')
+      navigateTo('/login')
+    }
+  }
+
+  const handleAuthError = (e) => {
+    if (e.response?.status === 401) {
+      error.value = 'Invalid email or password'
+    } else if (e.response?.status === 400) {
+      error.value = 'Validation error: ' + (e.response._data?.message || 'Invalid input')
+    } else if (e.message.includes('Network Error')) {
+      error.value = 'Network error - please check your connection'
+    } else {
+      error.value = 'Operation failed. Please try again later.'
+    }
+  }
+
+  // Initialize auth state on client side
+  if (process.client) {
+    checkAuth()
   }
 
   return {
